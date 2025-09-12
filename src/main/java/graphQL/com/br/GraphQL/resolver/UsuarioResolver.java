@@ -1,6 +1,7 @@
-package graphQL.com.br.GraphQL.resolver;
+package graphQL.com.br.GraphQL.controller;
 
 import graphQL.com.br.GraphQL.entity.Usuario;
+import graphQL.com.br.GraphQL.exception.GraphQLCustomException;
 import graphQL.com.br.GraphQL.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,7 +11,6 @@ import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
 import java.util.List;
-import java.util.Optional;
 
 @Controller
 @RequiredArgsConstructor
@@ -25,7 +25,12 @@ public class UsuarioResolver {
 
     @QueryMapping
     public Usuario usuarioPorId(@Argument Long id) {
-        return usuarioRepository.findById(id).orElse(null);
+        return usuarioRepository.findById(id)
+                .orElseThrow(() -> new GraphQLCustomException(
+                        "Usuário não encontrado", // Mensagem simples
+                        "USUARIO_NAO_ENCONTRADO",
+                        "Usuário com ID " + id + " não encontrado" // Mensagem técnica
+                ));
     }
 
     @MutationMapping
@@ -35,7 +40,11 @@ public class UsuarioResolver {
         try {
             // Verifica se email já existe
             if (usuarioRepository.existsByEmail(email)) {
-                throw new RuntimeException("EMAIL_JA_CADASTRADO:O email " + email + " já está cadastrado no sistema");
+                throw new GraphQLCustomException(
+                        "E-mail já cadastrado", // Mensagem simples
+                        "EMAIL_JA_CADASTRADO",
+                        "O email " + email + " já está cadastrado no sistema" // Mensagem técnica
+                );
             }
 
             Usuario usuario = new Usuario();
@@ -45,9 +54,17 @@ public class UsuarioResolver {
             return usuarioRepository.save(usuario);
 
         } catch (DataIntegrityViolationException e) {
-            throw new RuntimeException("ERRO_INTEGRIDADE:Erro de integridade de dados. Verifique os campos únicos");
+            throw new GraphQLCustomException(
+                    "Erro ao processar os dados", // Mensagem simples
+                    "ERRO_INTEGRIDADE",
+                    "Erro de integridade de dados. Verifique os campos únicos" // Mensagem técnica
+            );
         } catch (Exception e) {
-            throw new RuntimeException("ERRO_INTERNO:Erro interno ao criar usuário: " + e.getMessage());
+            throw new GraphQLCustomException(
+                    "E-mail já cadastrado", // Mensagem simples
+                    "ERRO_INTERNO",
+                    "Erro interno ao criar usuário: " + e.getMessage() // Mensagem técnica
+            );
         }
     }
 
@@ -57,42 +74,64 @@ public class UsuarioResolver {
                                     @Argument String email,
                                     @Argument Integer idade) {
         try {
-            Optional<Usuario> usuarioOptional = usuarioRepository.findById(id);
-            if (usuarioOptional.isPresent()) {
-                Usuario usuario = usuarioOptional.get();
+            Usuario usuario = usuarioRepository.findById(id)
+                    .orElseThrow(() -> new GraphQLCustomException(
+                            "Usuário não encontrado", // Mensagem simples
+                            "USUARIO_NAO_ENCONTRADO",
+                            "Usuário com ID " + id + " não encontrado" // Mensagem técnica
+                    ));
 
-                // Verifica se email já existe em outro usuário
-                if (email != null && !email.equals(usuario.getEmail())) {
-                    if (usuarioRepository.existsByEmailAndIdNot(email, id)) {
-                        throw new RuntimeException("EMAIL_JA_CADASTRADO:O email " + email + " já está cadastrado para outro usuário");
-                    }
+            // Verifica se email já existe em outro usuário
+            if (email != null && !email.equals(usuario.getEmail())) {
+                if (usuarioRepository.existsByEmailAndIdNot(email, id)) {
+                    throw new GraphQLCustomException(
+                            "E-mail já cadastrado", // Mensagem simples
+                            "EMAIL_JA_CADASTRADO",
+                            "O email " + email + " já está cadastrado para outro usuário" // Mensagem técnica
+                    );
                 }
-
-                if (nome != null) usuario.setNome(nome);
-                if (email != null) usuario.setEmail(email);
-                if (idade != null) usuario.setIdade(idade);
-                return usuarioRepository.save(usuario);
             }
-            throw new RuntimeException("USUARIO_NAO_ENCONTRADO:Usuário com ID " + id + " não encontrado");
+
+            if (nome != null) usuario.setNome(nome);
+            if (email != null) usuario.setEmail(email);
+            if (idade != null) usuario.setIdade(idade);
+            return usuarioRepository.save(usuario);
 
         } catch (DataIntegrityViolationException e) {
-            throw new RuntimeException("ERRO_INTEGRIDADE:Erro de integridade de dados");
+            throw new GraphQLCustomException(
+                    "Erro ao processar os dados", // Mensagem simples
+                    "ERRO_INTEGRIDADE",
+                    "Erro de integridade de dados" // Mensagem técnica
+            );
         } catch (Exception e) {
-            throw new RuntimeException("ERRO_INTERNO:Erro ao atualizar usuário: " + e.getMessage());
+            throw new GraphQLCustomException(
+                    "Erro interno do sistema", // Mensagem simples
+                    "ERRO_INTERNO",
+                    "Erro ao atualizar usuário: " + e.getMessage() // Mensagem técnica
+            );
         }
     }
 
     @MutationMapping
     public Boolean deletarUsuario(@Argument Long id) {
         try {
-            if (usuarioRepository.existsById(id)) {
-                usuarioRepository.deleteById(id);
-                return true;
+            if (!usuarioRepository.existsById(id)) {
+                throw new GraphQLCustomException(
+                        "Usuário não encontrado", // Mensagem simples
+                        "USUARIO_NAO_ENCONTRADO",
+                        "Usuário com ID " + id + " não encontrado" // Mensagem técnica
+                );
             }
-            throw new RuntimeException("USUARIO_NAO_ENCONTRADO:Usuário com ID " + id + " não encontrado");
+
+            usuarioRepository.deleteById(id);
+            return true;
 
         } catch (Exception e) {
-            throw new RuntimeException("ERRO_INTERNO:Erro ao deletar usuário: " + e.getMessage());
+            throw new GraphQLCustomException(
+                    "Erro interno do sistema", // Mensagem simples
+                    "ERRO_INTERNO",
+                    "Erro ao deletar usuário: " + e.getMessage() // Mensagem técnica
+            );
         }
     }
 }
